@@ -1,4 +1,6 @@
 import json
+from traceback import format_exception
+
 import pandas as pd
 from datetime import datetime
 import requests
@@ -36,11 +38,11 @@ def str_date_to_date(date_str) -> datetime:
 def process_cards(date_str):
     date = str_date_to_date(date_str)
     date_start = date.replace(day=1)
-    date_start = date_start.strftime("%Y-%m-%d")
+    date_start = date_start.strftime("%d-%m-%Y %H:%M:%S") #%Y-%m-%d %H:%M:%S
     df = get_data_by_file_oper()
     df = df.dropna(subset=['Номер карты', 'Сумма операции'])
-    df = df[df['Дата операции'] <= date_str]
     df = df[df['Дата операции'] >= date_start]
+    df = df[df['Дата операции'] <= date_str]
     """Обработка данных по картам: последние 4 цифры, сумма расходов, кешбэк"""
     cards_info = []
     # Группируем по карте
@@ -62,15 +64,28 @@ def process_cards(date_str):
 def process_transactions(date_str):
     """Получение топ-5 транзакций за дату"""
     df = get_data_by_file_oper()
-    filtered = df[df['Дата операции'] == date_str]
-    top = filtered.sort_values(by='Сумма операции', ascending=False).head(5)
+    date = str_date_to_date(date_str)
+    date_start = date.replace(hour=0, minute=0, second=0)
+    date_start = date_start.strftime("%d.%m.%Y") # %H:%M:%S
+    date_finish = date.replace(day=date.day+1, hour=0, minute=0, second=0)
+    date_finish = date_finish.strftime("%d.%m.%Y %H:%M:%S")  # %Y-%m-%d %H:%M:%S
+    #df = df.loc[date_start : date_finish]
+    #filtered = df[(df['Дата операции'] >= date_start)]
+    df = df[df['Дата операции'] >= date_start]
+    df = df[df['Дата операции'] < date_finish]
+    #df = df[df['Дата операции'] == date_start]
+    #df = df[df['Дата операции'] == date]
+    top = df.sort_values(by='Сумма операции', ascending=False).head(5)
+    print(df.head(5))
+    print(df.tail(5))
     result = []
     for _, row in top.iterrows():
-        date_obj = datetime.strptime(row['Дата операции'], "%Y-%m-%d")
-        date_str_formatted = date_obj.strftime("%d.%m.%Y")
+        # date_obj = datetime.strptime(row['Дата операции'], "%Y-%m-%d")
+        # date_str_formatted = date_obj.strftime("%d.%m.%Y")
+        date_str_formatted = row['Дата операции']
         result.append({
             'date': date_str_formatted,
-            'amount': round(row['Сумма операции'], 2),
+            'amount': round(float(row['Сумма операции'].replace(",", ".")), 2),
             'category': row.get('Категория', ''),
             'description': row.get('Описание', '')
         })
@@ -78,39 +93,66 @@ def process_transactions(date_str):
 
 
 def get_full_currency_dict():
+    result_list = []
+
     dict_user_settings = get_dada_by_file_user_settings()
     if "user_currencies" not in dict_user_settings:
         return
+
     list_need_currency = dict_user_settings["user_currencies"]
-    url = "https://api.apilayer.com/exchangerates_data/symbols"     #?symbols=EUR,GBP
+    for cur in list_need_currency:
+        url = f"https://api.apilayer.com/currency_data/live?source={cur}&currencies=RUB" #{",".join(dict_user_settings['user_currencies'])}   #?symbols=EUR,GBP
+        payload = {}
+        headers = {
+            "apikey": "24z0Oh9LjLrDGi9p8XyNuCwZ3k6HvEz4"
+        }
+        response = requests.request("GET", url, headers=headers, data=payload)
+        status_code = response.status_code
+        if status_code == 200:
+            result = json.loads(response.text)
+            result_list.append({"currentcy": result["source"], "rate": list(result["quotes"].items())[0][1]})
+    return  result_list
 
-    payload = {}
-    headers = {
-        "apikey": "24z0Oh9LjLrDGi9p8XyNuCwZ3k6HvEz4"
-    }
+def get_full_stock_prices_dict():
+    result_list = []
 
-    response = requests.request("GET", url, headers=headers, data=payload)
+    dict_user_settings = get_dada_by_file_user_settings()
+    if "user_stocks" not in dict_user_settings:
+        return
 
-    status_code = response.status_code
-    result = response.text
+    list_need_currency = dict_user_settings["user_stocks"]
+    for cur in list_need_currency:
+        url = f"https://api.apilayer.com/currency_data/live?source={cur}&currencies=RUB" #{",".join(dict_user_settings['user_currencies'])}   #?symbols=EUR,GBP
+        payload = {}
+        headers = {
+            "apikey": "24z0Oh9LjLrDGi9p8XyNuCwZ3k6HvEz4"
+        }
+        response = requests.request("GET", url, headers=headers, data=payload)
+        status_code = response.status_code
+        if status_code == 200:
+            result = json.loads(response.text)
+            result_list.append({"currentcy": result["source"], "rate": list(result["quotes"].items())[0][1]})
+    return  result_list
 
 def process_currency_rates():
     """Статичные курсы валют"""
-    return [
-        {'currency': 'USD', 'rate': 73.21},
-        {'currency': 'EUR', 'rate': 87.08}
-    ]
-
+    # return [
+    #     {'currency': 'USD', 'rate': 73.21},
+    #     {'currency': 'EUR', 'rate': 87.08}
+    # ]
+    return get_full_currency_dict()
 
 def process_stock_prices():
     """Статичные цены акций"""
-    return [
-        {'stock': 'AAPL', 'price': 150.12},
-        {'stock': 'AMZN', 'price': 3173.18},
-        {'stock': 'GOOGL', 'price': 2742.39},
-        {'stock': 'MSFT', 'price': 296.71},
-        {'stock': 'TSLA', 'price': 1007.08}
-    ]
+    # return [
+    #     {'stock': 'AAPL', 'price': 150.12},
+    #     {'stock': 'AMZN', 'price': 3173.18},
+    #     {'stock': 'GOOGL', 'price': 2742.39},
+    #     {'stock': 'MSFT', 'price': 296.71},
+    #     {'stock': 'TSLA', 'price': 1007.08}
+    # ]
+    get_full_stock_prices_dict()
+
 
 
 def main(input_datetime_str):
