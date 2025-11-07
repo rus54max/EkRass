@@ -1,10 +1,12 @@
 import json
+import os
 from traceback import format_exception
-
+from dotenv import load_dotenv
 import pandas as pd
 from datetime import datetime
 import requests
 
+load_dotenv()
 
 def get_data_by_file_oper():
     #df = pd.read_csv("../data/operations.csv", parse_dates=['Дата операции'], date_format= "%d-%m-%Y %H:%M:%S")
@@ -76,8 +78,8 @@ def process_transactions(date_str):
     #df = df[df['Дата операции'] == date_start]
     #df = df[df['Дата операции'] == date]
     top = df.sort_values(by='Сумма операции', ascending=False).head(5)
-    print(df.head(5))
-    print(df.tail(5))
+    #print(df.head(5))
+    #print(df.tail(5))
     result = []
     for _, row in top.iterrows():
         # date_obj = datetime.strptime(row['Дата операции'], "%Y-%m-%d")
@@ -92,7 +94,7 @@ def process_transactions(date_str):
     return result
 
 
-def get_full_currency_dict():
+def process_currency_rates():
     result_list = []
 
     dict_user_settings = get_dada_by_file_user_settings()
@@ -104,7 +106,8 @@ def get_full_currency_dict():
         url = f"https://api.apilayer.com/currency_data/live?source={cur}&currencies=RUB" #{",".join(dict_user_settings['user_currencies'])}   #?symbols=EUR,GBP
         payload = {}
         headers = {
-            "apikey": "24z0Oh9LjLrDGi9p8XyNuCwZ3k6HvEz4"
+            "apikey": os.getenv('API_LAYER')
+            #"apikey": "24z0Oh9LjLrDGi9p8XyNuCwZ3k6HvEz4"
         }
         response = requests.request("GET", url, headers=headers, data=payload)
         status_code = response.status_code
@@ -113,221 +116,30 @@ def get_full_currency_dict():
             result_list.append({"currentcy": result["source"], "rate": list(result["quotes"].items())[0][1]})
     return  result_list
 
-def get_full_stock_prices_dict():
+def process_stock_prices():
     result_list = []
 
     dict_user_settings = get_dada_by_file_user_settings()
     if "user_stocks" not in dict_user_settings:
         return
 
-    list_need_currency = dict_user_settings["user_stocks"]
-    for cur in list_need_currency:
-        url = f"https://api.apilayer.com/currency_data/live?source={cur}&currencies=RUB" #{",".join(dict_user_settings['user_currencies'])}   #?symbols=EUR,GBP
+    list_need_stocks = dict_user_settings["user_stocks"]
+
+    for stock in list_need_stocks:
+        url = f"https://api.api-ninjas.com/v1/stockprice?ticker={stock}"
         payload = {}
         headers = {
-            "apikey": "24z0Oh9LjLrDGi9p8XyNuCwZ3k6HvEz4"
+            "X-Api-Key": os.getenv('API_NINJAS')
         }
         response = requests.request("GET", url, headers=headers, data=payload)
         status_code = response.status_code
         if status_code == 200:
             result = json.loads(response.text)
-            result_list.append({"currentcy": result["source"], "rate": list(result["quotes"].items())[0][1]})
+            result_list.append({"stock": result["ticker"], "price": result["price"]})
     return  result_list
 
-def process_currency_rates():
-    """Статичные курсы валют"""
-    # return [
-    #     {'currency': 'USD', 'rate': 73.21},
-    #     {'currency': 'EUR', 'rate': 87.08}
-    # ]
-    return get_full_currency_dict()
-
-def process_stock_prices():
-    """Статичные цены акций"""
-    # return [
-    #     {'stock': 'AAPL', 'price': 150.12},
-    #     {'stock': 'AMZN', 'price': 3173.18},
-    #     {'stock': 'GOOGL', 'price': 2742.39},
-    #     {'stock': 'MSFT', 'price': 296.71},
-    #     {'stock': 'TSLA', 'price': 1007.08}
-    # ]
-    get_full_stock_prices_dict()
-
-
-
-def main(input_datetime_str):
-    get_full_currency_dict()
-    # Определяем приветствие
-    greeting = get_greeting(input_datetime_str)
-
-    # Чтение данных
-    df = pd.read_csv('../data/operations.csv')
-
-    # Получаем дату из строки
-    dt = datetime.strptime(input_datetime_str, "%Y-%m-%d %H:%M:%S")
-    date_str = dt.strftime("%Y-%m-%d")
-
-    # Обработка
-    cards_info = process_cards("2023-10-24 14:30:00")
-    top_transactions = process_transactions(df, date_str)
-    currency_rates = process_currency_rates()
-    stock_prices = process_stock_prices()
-
-    # Итоговый JSON
-    result = {
-        "greeting": greeting,
-        "cards": cards_info,
-        "top_transactions": top_transactions,
-        "currency_rates": currency_rates,
-        "stock_prices": stock_prices
-    }
-    return json.dumps(result, ensure_ascii=False, indent=2)
-
-# Пример вызова:
-#print(main("2023-10-24 14:30:00"))
-
-
-# • https://www.alphavantage.co/
-#
-# • https://finnhub.io/
-#
-# • https://twelvedata.com/
 
 
 
 
 
-
-
-
-# import pandas as pd
-# from datetime import datetime
-#
-#
-# def get_data_by_file():
-#     df = pd.read_csv("../data/operations.csv")
-#     return df
-#
-# def display_current_time():
-#     now = datetime.now()
-#     current_time_str = now.strftime("%H:%M:%S")
-#     if current_time_str >= "4:00:00" and current_time_str <= "11:59:59":
-#         return "Доброе утро"
-#     elif current_time_str >= "12:00:00" and current_time_str <= "17:59:59":
-#         return "Добрый день"
-#     elif current_time_str >= "18:00:00" and current_time_str <= "23:59:59":
-#         return "Добрый вечер"
-#     else:
-#         return "Доброй ночи"
-
-
-
-
-
-
-# def get_top_transactions():
-#     df = pd.read_csv('../data/operations.csv')
-#     transactions =
-
-
-
-
-
-# def process_transactions():
-#     transactions = pd.read_csv('../data/operations.csv').to_dict(orient='records')
-#     card_summary = {}
-#     for transaction in transactions:
-#         card_number = transaction['Номер карты']
-#         amount = transaction['Сумма операции']
-#
-#         if card_number not in card_summary:
-#             card_summary[card_number] = {'total_spent': 0, 'last_digits': card_number[-4:], 'cashback': 0}
-#
-#         card_summary[card_number]['total_spent'] += amount
-#         card_summary[card_number]['cashback'] += amount // 100  # 1 рубль на каждые 100 рублей
-#
-#     return list(card_summary.values())
-#
-# process_transactions()
-
-# gen_list = []
-# cat_list = {}
-#
-# df = pd.read_csv('operations.csv')
-# for index, row in df.iterrows():
-#     cat = row['Номер карты']
-#     price = float(row['Сумма операции'].replace(',', '.'))
-#     if cat == "" or cat == "nan":
-#         continue
-#     gen_list.append([cat, price])
-#     if cat not in cat_list:
-#         cat_list[cat] = 0
-#
-# for key, value in cat_list.items():
-#     summ = sum(x[1] for x in gen_list if x[0] == key)
-#     cat_list[key] = summ
-#
-# cat_list = { key: (value * -1) // 100 if value < 0 else value for key, value in cat_list.items()}
-# print(cat_list)
-
-# # 1. Чтение данных из файла
-# df = pd.read_csv('../data/operations.csv')
-#
-# # 2. Группировка по столбцу 'Категория' и суммирование 'Значения'
-# grouped_data = df.groupby('Номер карты')['Сумма операции'].sum()
-#
-# print(grouped_data)
-
-
-
-# def is_float(string):
-#     try:
-#         return float(string)  #and '.' in string  # True if string is a number contains a dot
-#     except ValueError:  # String is not a number
-#         return False
-#
-#
-# def get_list_card_group():
-#     p = get_data_by_file()
-#     result ={}
-#     for i, value in p.iterrows():
-#         namber_card = value['Номер карты']
-#         if namber_card == "nan":
-#             continue
-#         price_tran = value['Сумма операции']
-#         if not is_float(price_tran):
-#             continue
-#         price_tran = int(price_tran)
-#         if namber_card in result:
-#             result[namber_card] += price_tran
-#         else:
-#             result[namber_card] = price_tran
-#
-#
-#
-#
-#     print(result)
-#
-# get_list_card_group()
-
-
-
-
-    # "last_digits": "Номер карты"
-    # "total_spent": "Сумма операции"
-    # "cashback": "Кэшбэк"
-
-
-
-
-    # # Чтение CSV в DataFrame
-    # df = pd.read_csv('input.csv')
-    #
-    # # Преобразование DataFrame в список словарей
-    # data_list_pd = df.to_dict('records')
-    #
-    # print(data_list_pd)
-    # # Пример вывода:
-    # # [{'Имя': 'Алиса', 'Возраст': 30, 'Город': 'Москва'}, ...]
-    #
-    # print(wine_reviews.head(5))

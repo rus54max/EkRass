@@ -8,9 +8,9 @@ def by_date(date_time): #YYYY-MM-DD HH:MM:SS
     dict_result["greeting"] = get_greeting(date_time)
     dict_result["cards"] = process_cards(date_time)
     dict_result["top_transactions"] = process_transactions(date_time)
-    #dict_result["currency_rates"] = process_currency_rates()
+    dict_result["currency_rates"] = process_currency_rates()
     dict_result["stock_prices"] = process_stock_prices()
-    return json.dumps(dict_result)
+    return json.dumps(dict_result, ensure_ascii=False, indent=2)
 
 
 dict_result = by_date("2021-10-24 14:30:00")
